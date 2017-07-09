@@ -152,12 +152,7 @@ function patch(modules) {
         }
       }
 
-      config.rules = Object.assign(
-        {
-          "__html-plugin-declare-variables": "error",
-        },
-        rules
-      )
+      config.rules = rules
 
       if (!config.globals) config.globals = {}
 
@@ -168,44 +163,44 @@ function patch(modules) {
       // * references === used (declared or not)
       // * variables  === declared (used or not)
 
-      for (const values of firstPassValues) {
-        this.rules.define("__html-plugin-declare-variables", {
-          meta: {
-            docs: {
-              description: "Internal html plugin rule to declare variables used in other script tags",
-              category: "None",
-              recommended: false,
-            },
-            schema: [], // no options
-          },
-          create(context) {
-            return {
-              Program() {
-                for (
-                  let i = firstPassValues.length - 1;
-                  firstPassValues[i] !== values;
-                  i--
-                ) {
-                  const scopeManager = firstPassValues[i].scopeManager
-                  if (!scopeManager) continue
-                  for (const { identifier: { name } } of scopeManager
-                    .globalScope.through) {
-                    context.markVariableAsUsed(name)
-                  }
-                }
-              },
-            }
-          },
+      for (let i = 0; i < firstPassValues.length; i += 1) {
+        const values = firstPassValues[i]
+
+        declareVariables(
+          values.sourceCode,
+          "globals",
+          firstPassValues
+            .slice(0, i)
+            .map(({ scopeManager }) =>
+              // TODO splat
+              scopeManager.globalScope.variables
+                .map(({ name }) => name)
+                .filter((name) =>
+                  values.scopeManager.globalScope.through.some(
+                    (other) => other.identifier.name === name
+                  )
+                )
+            )
+        )
+
+        let exported = "exported "
+        for (
+          let i = firstPassValues.length - 1;
+          firstPassValues[i] !== values;
+          i -= 1
+        ) {
+          for (const { identifier: { name } } of firstPassValues[i].scopeManager
+            .globalScope.through) {
+            exported += `${name}: true,`
+          }
+        }
+        values.sourceCode.ast.comments.push({
+          value: exported,
+          loc: { start: 0, end: 0 },
+          type: "Block",
         })
 
         pushMessages(localVerify(values.sourceCode), values.code)
-
-        for (const { name } of this.scopeManager.globalScope.variables) {
-          if (!(name in config.globals)) {
-            config.globals[name] = true
-          }
-        }
-
       }
 
       sourceCodeForMessages.set(messages, textOrSourceCode)
@@ -229,6 +224,15 @@ function patch(modules) {
       messages
     )
   }
+}
+
+function declareVariables(sourceCode, type, vars) {
+  const joined = vars.map((name) => `${name}: true,`).join("\n")
+  sourceCode.ast.comments.push({
+    value: `${type} ${joined}`,
+    loc: { start: 0, end: 0 },
+    type: "Block",
+  })
 }
 
 function remapMessages(messages, code, reportBadIndent, badIndentationLines) {
