@@ -114,6 +114,20 @@ function patch(modules) {
       !isHTML && pluginSettings.xmlExtensions.indexOf(extension) >= 0
 
     if (typeof textOrSourceCode === "string" && (isHTML || isXML)) {
+      messages = []
+
+      const pushMessages = (localMessages, code) => {
+        messages.push.apply(
+          messages,
+          remapMessages(
+            localMessages,
+            code,
+            pluginSettings.reportBadIndent,
+            currentInfos.badIndentationLines
+          )
+        )
+      }
+
       const currentInfos = extract(
         textOrSourceCode,
         pluginSettings.indent,
@@ -121,19 +135,78 @@ function patch(modules) {
         pluginSettings.isJavaScriptMIMEType
       )
 
-      messages = []
+      // First pass
+      const firstPassValues = []
+      const rules = config.rules
+      config.rules = {}
 
-      currentInfos.code.forEach((code) => {
-        messages.push.apply(
-          messages,
-          remapMessages(
-            localVerify(String(code)),
+      for (const code of currentInfos.code) {
+        const localMessages = localVerify(String(code))
+        if (localMessages.length) pushMessages(localMessages, code)
+        else {
+          firstPassValues.push({
             code,
-            pluginSettings.reportBadIndent,
-            currentInfos.badIndentationLines
-          )
-        )
-      })
+            sourceCode: this.sourceCode,
+            scopeManager: this.scopeManager,
+          })
+        }
+      }
+
+      config.rules = Object.assign(
+        {
+          "__html-plugin-declare-variables": "error",
+        },
+        rules
+      )
+
+      if (!config.globals) config.globals = {}
+
+      // Second pass
+
+      // Note: Scope properties:
+      // * through    === used but not declared
+      // * references === used (declared or not)
+      // * variables  === declared (used or not)
+
+      for (const values of firstPassValues) {
+        this.rules.define("__html-plugin-declare-variables", {
+          meta: {
+            docs: {
+              description: "Internal html plugin rule to declare variables used in other script tags",
+              category: "None",
+              recommended: false,
+            },
+            schema: [], // no options
+          },
+          create(context) {
+            return {
+              Program() {
+                for (
+                  let i = firstPassValues.length - 1;
+                  firstPassValues[i] !== values;
+                  i--
+                ) {
+                  const scopeManager = firstPassValues[i].scopeManager
+                  if (!scopeManager) continue
+                  for (const { identifier: { name } } of scopeManager
+                    .globalScope.through) {
+                    context.markVariableAsUsed(name)
+                  }
+                }
+              },
+            }
+          },
+        })
+
+        pushMessages(localVerify(values.sourceCode), values.code)
+
+        for (const { name } of this.scopeManager.globalScope.variables) {
+          if (!(name in config.globals)) {
+            config.globals[name] = true
+          }
+        }
+
+      }
 
       sourceCodeForMessages.set(messages, textOrSourceCode)
     }

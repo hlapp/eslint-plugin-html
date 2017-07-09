@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>A</title>
+  </head>
+  <body>
+
+    <script>
+      // globally scoped (no warning, because used after)
+      var varA = 1;
+      function functionA() {}
+
+      // locally scoped (warn unused)
+      // const constA = 1;
+      // let letA = 1;
+      // class classA {}
+
+      // declared elsewhere usage (warn undef)
+      console.log(varB);
+      console.log(functionB);
+      // console.log(constB);
+      // console.log(letB);
+      // console.log(classB);
+    </script>
+
+    <script>
+      // globally scoped (warn unused)
+      var varB = 1;
+      function functionB() {}
+
+      // locally scoped (warn unused)
+      // const constB = 1;
+      // let letB = 1;
+      // class classB {}
+
+      // declared elsewhere usage (no warning, as it is declared before)
+      console.log(varA);
+      console.log(functionA);
+
+      // declared elsewhere usage (warn undef)
+      // console.log(constA);
+      // console.log(letA);
+      // console.log(classA);
+    </script>
+
+<!--     <script type="module"> -->
+<!--       var c = 3;       // warn unused -->
+<!--       console.log(a);  // no warn -->
+<!--       console.log(b);  // no warn -->
+<!--     </script> -->
+
+<!--     <script> -->
+<!--       console.log(c);  // warn undef -->
+<!--     </script> -->
+
+<!--     <script type="module"> -->
+<!--       console.log(c);  // warn undef -->
+<!--     </script> -->
+
+  </body>
+</html>

@@ -24,6 +24,8 @@ function execute(file, baseConfig) {
         },
         baseConfig.rules
       ),
+      globals: baseConfig.globals,
+      env: baseConfig.env,
     },
     ignore: false,
     useEslintrc: false,
@@ -641,4 +643,30 @@ it("should report correct eol-last message position", () => {
   else {
     expect(messages[0].column).toBe(12)
   }
+})
+
+fit("should share the global scope between script tags", () => {
+  const messages = execute("scope-sharing.html", {
+    rules: {
+      "no-console": "off",
+      "no-undef": "error",
+      "no-unused-vars": "error",
+    },
+    globals: {
+      "console": false
+    },
+    env: { "es6": true },
+  })
+
+  console.log(messages)
+  expect(messages.length).toBe(4)
+  expect(messages[0].line).toBe(20)
+  expect(messages[0].message).toBe("'varB' is not defined.")
+  expect(messages[1].line).toBe(21)
+  expect(messages[1].message).toBe("'functionB' is not defined.")
+
+  expect(messages[2].line).toBe(29)
+  expect(messages[2].message).toBe("'varB' is assigned a value but never used.")
+  expect(messages[3].line).toBe(30)
+  expect(messages[3].message).toBe("'functionB' is defined but never used.")
 })
